@@ -1,841 +1,719 @@
 
-// ==========================================
-// KOMPATIBILITAS BROWSER ANDROID
-// ==========================================
-
-// Polyfill untuk browser yang belum mendukung
-// Promise.withResolvers (dibutuhkan PDF.js 4.x).
+/* ==========================================
+   KOMPATIBILITAS BROWSER ANDROID
+========================================== */
 
 if (typeof Promise.withResolvers !== "function") {
-  Promise.withResolvers = function () {
-    let resolve;
-    let reject;
+    Promise.withResolvers = function () {
+        let resolve;
+        let reject;
 
-    const promise = new Promise((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
+        const promise = new Promise((res, rej) => {
+            resolve = res;
+            reject = rej;
+        });
 
-    return {
-      promise,
-      resolve,
-      reject
+        return {
+            promise,
+            resolve,
+            reject
+        };
     };
-  };
 }
 
-// ==========================================
-// KONFIGURASI PDF.JS
-// ==========================================
+
+/* ==========================================
+   KONFIGURASI PDF.JS
+========================================== */
 
 const pdfjsLib = await import(
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs"
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs"
 );
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 
-// ==========================================
-// ELEMEN HTML
-// ==========================================
+
+/* ==========================================
+   ELEMEN HTML
+========================================== */
 
 const $ = (id) => document.getElementById(id);
 
 const listView = $("listView");
 const viewerView = $("viewerView");
+
 const documentList = $("documentList");
 const searchInput = $("searchInput");
 const documentCount = $("documentCount");
+
 const emptyState = $("emptyState");
 const loadError = $("loadError");
 
-// ==========================================
-// STATE / VARIABEL
-// ==========================================
+const pdfLoading = $("pdfLoading");
+const pdfError = $("pdfError");
+const pdfStage = $("pdfStage");
+
+
+/* ==========================================
+   STATE / VARIABEL
+========================================== */
 
 let documents = [];
-let pdfDocument = null;
-let currentPage = 1;
-let scale = 1;
-let currentUrl = "";
-let renderTask = null;
 
-let textIndex = [];
-let searchMatches = [];
-let currentMatch = -1;
+let pdfDocument = null;
+let pdfLoadingTask = null;
+
+let currentUrl = "";
 
 let loadingNumber = 0;
+let renderTasks = [];
 
-// ==========================================
-// MANAJEMEN URL
-// ==========================================
+let resizeTimer = null;
+
+
+/* ==========================================
+   MANAJEMEN URL
+========================================== */
 
 function updatePdfUrl(file, method = "pushState") {
-  const url = new URL(window.location.href);
 
-  if (file) {
-    url.searchParams.set("pdf", file);
-  } else {
-    url.searchParams.delete("pdf");
-  }
+    const url = new URL(window.location.href);
 
-  history[method]({}, "", url);
+    if (file) {
+        url.searchParams.set("pdf", file);
+    } else {
+        url.searchParams.delete("pdf");
+    }
+
+    history[method]({}, "", url);
+
 }
 
-// ==========================================
-// MEMBACA DAFTAR JSON
-// ==========================================
+
+/* ==========================================
+   MEMBACA DAFTAR JSON
+========================================== */
 
 async function loadDocuments() {
-  try {
-    const response = await fetch("./daftar.json", {
-      cache: "no-store"
-    });
 
-    if (!response.ok) {
-      throw new Error(
-        `Gagal membaca daftar.json (HTTP ${response.status}).`
-      );
+    try {
+
+        const response = await fetch("./daftar.json", {
+            cache: "no-store"
+        });
+
+        if (!response.ok) {
+            throw new Error(
+                `Gagal membaca daftar.json (HTTP ${response.status}).`
+            );
+        }
+
+        const data = await response.json();
+
+        if (!Array.isArray(data)) {
+            throw new Error(
+                "Format daftar.json harus berupa array."
+            );
+        }
+
+        documents = data.filter(item =>
+            item &&
+            typeof item.judul === "string" &&
+            typeof item.file === "string" &&
+            item.judul.trim() &&
+            item.file.trim()
+        );
+
+        renderList();
+
+    } catch (error) {
+
+        console.error("Load Documents Error:", error);
+
+        documentCount.textContent =
+            "Daftar dokumen belum dapat dimuat";
+
+        loadError.hidden = false;
+
+        loadError.textContent =
+            `${error.message} Pastikan daftar.json tersedia di folder utama website.`;
+
     }
 
-    const data = await response.json();
-
-    if (!Array.isArray(data)) {
-      throw new Error(
-        "Format daftar.json harus berupa array."
-      );
-    }
-
-    documents = data.filter(item =>
-      item &&
-      typeof item.judul === "string" &&
-      typeof item.file === "string" &&
-      item.judul.trim() &&
-      item.file.trim()
-    );
-
-    renderList();
-
-  } catch (error) {
-    documentCount.textContent =
-      "Daftar dokumen belum dapat dimuat";
-
-    loadError.hidden = false;
-    loadError.textContent =
-      `${error.message} Pastikan website dijalankan melalui server atau hosting.`;
-  }
 }
 
-// ==========================================
-// MENAMPILKAN DAFTAR PDF
-// ==========================================
+
+/* ==========================================
+   MENAMPILKAN DAFTAR DOKUMEN
+========================================== */
 
 function renderList() {
-  const keyword = searchInput.value
-    .trim()
-    .toLocaleLowerCase("id");
 
-  const filtered = documents.filter(item =>
-    item.judul.toLocaleLowerCase("id").includes(keyword)
-  );
+    const keyword = searchInput.value
+        .trim()
+        .toLocaleLowerCase("id");
 
-  documentList.replaceChildren();
+    const filtered = documents.filter(item =>
+        item.judul.toLocaleLowerCase("id").includes(keyword)
+    );
 
-  documentCount.textContent =
-    `${filtered.length} dokumen tersedia`;
+    documentList.replaceChildren();
 
-  emptyState.hidden = filtered.length !== 0;
+    documentCount.textContent =
+        `${filtered.length} dokumen tersedia`;
 
-  filtered.forEach(item => {
-    const card = document.createElement("button");
+    emptyState.hidden = filtered.length !== 0;
 
-    card.type = "button";
-    card.className = "document-card";
+    filtered.forEach(item => {
 
-    card.innerHTML = `
-      <span class="pdf-icon">PDF</span>
+        const card = document.createElement("button");
 
-      <span class="card-copy">
-        <strong></strong>
-        <small>Dokumen PDF · Klik untuk membaca</small>
-      </span>
+        card.type = "button";
+        card.className = "document-card";
 
-      <span class="card-arrow" aria-hidden="true">›</span>
-    `;
+        card.innerHTML = `
+            <span class="pdf-icon">PDF</span>
 
-    card.querySelector("strong").textContent =
-      item.judul;
+            <span class="card-copy">
+                <strong></strong>
+                <small>Dokumen PDF · Klik untuk membaca</small>
+            </span>
 
-    card.addEventListener("click", () => {
-      openPdf(item);
+            <span class="card-arrow" aria-hidden="true">›</span>
+        `;
+
+        card.querySelector("strong").textContent =
+            item.judul;
+
+        card.addEventListener("click", () => {
+            openPdf(item);
+        });
+
+        documentList.appendChild(card);
+
     });
 
-    documentList.appendChild(card);
-  });
 }
 
 searchInput.addEventListener("input", renderList);
 
-// ==========================================
-// MENAMPILKAN VIEWER
-// ==========================================
+
+/* ==========================================
+   MENAMPILKAN PDF VIEWER
+========================================== */
 
 function showViewer() {
-  listView.hidden = true;
-  viewerView.hidden = false;
 
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
+    document.body.classList.add("pdf-only");
+
+    listView.hidden = true;
+    viewerView.hidden = false;
+
+    window.scrollTo(0, 0);
+
 }
 
-// ==========================================
-// MEMBERSIHKAN PDF
-// ==========================================
 
-function disposePdf() {
-  loadingNumber++;
+/* ==========================================
+   MENGHENTIKAN PROSES PDF
+========================================== */
 
-  if (renderTask) {
-    try {
-      renderTask.cancel();
-    } catch (_) {}
+async function disposePdf() {
 
-    renderTask = null;
-  }
+    loadingNumber++;
 
-  if (pdfDocument) {
-    const oldDocument = pdfDocument;
-    pdfDocument = null;
+    // Hentikan semua proses render
 
-    oldDocument.destroy().catch(() => {});
-  }
+    renderTasks.forEach(task => {
 
-  textIndex = [];
-  searchMatches = [];
-  currentMatch = -1;
+        try {
+            task.cancel();
+        } catch (_) {}
+
+    });
+
+    renderTasks = [];
+
+    // Hentikan proses loading
+
+    if (pdfLoadingTask) {
+
+        const oldTask = pdfLoadingTask;
+
+        pdfLoadingTask = null;
+
+        try {
+            await oldTask.destroy();
+        } catch (_) {}
+
+    }
+
+    // Hapus dokumen lama
+
+    if (pdfDocument) {
+
+        const oldDocument = pdfDocument;
+
+        pdfDocument = null;
+
+        try {
+            await oldDocument.destroy();
+        } catch (_) {}
+
+    }
+
+    pdfStage.replaceChildren();
+
 }
 
-// ==========================================
-// KEMBALI KE DAFTAR
-// ==========================================
 
-function showList(updateUrl = true) {
-  disposePdf();
+/* ==========================================
+   KEMBALI KE DAFTAR
+========================================== */
 
-  $("searchStatus").textContent = "";
-  $("pdfSearchInput").value = "";
+async function showList(updateUrl = true) {
 
-  viewerView.hidden = true;
-  listView.hidden = false;
+    await disposePdf();
 
-  if (updateUrl) {
-    updatePdfUrl(null, "replaceState");
-  }
+    document.body.classList.remove("pdf-only");
 
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
+    viewerView.hidden = true;
+    listView.hidden = false;
+
+    pdfLoading.hidden = true;
+    pdfError.hidden = true;
+
+    if (updateUrl) {
+        updatePdfUrl(null, "replaceState");
+    }
+
+    window.scrollTo(0, 0);
+
 }
 
-$("backButton").addEventListener("click", () => {
-  showList();
-});
 
-// ==========================================
-// MEMBUKA PDF
-// ==========================================
+/* ==========================================
+   MEMBUKA PDF
+========================================== */
 
 async function openPdf(item, updateUrl = true) {
 
-  if (updateUrl) {
-    updatePdfUrl(item.file);
-  }
+    if (!item || !item.file) return;
 
-  const thisLoading = ++loadingNumber;
+    // Perbarui URL
 
-  if (renderTask) {
-    try {
-      renderTask.cancel();
-    } catch (_) {}
+    if (updateUrl) {
+        updatePdfUrl(item.file);
+    }
 
-    renderTask = null;
-  }
+    const thisLoading = ++loadingNumber;
 
-  if (pdfDocument) {
-    const oldDocument = pdfDocument;
-    pdfDocument = null;
+    // Hentikan proses sebelumnya
 
-    try {
-      await oldDocument.destroy();
-    } catch (_) {}
-  }
-
-  if (thisLoading !== loadingNumber) return;
-
-  textIndex = [];
-  searchMatches = [];
-  currentMatch = -1;
-
-  showViewer();
-
-  $("viewerTitle").textContent = item.judul;
-
-  $("pdfLoading").hidden = false;
-  $("pdfLoading").textContent = "Memuat dokumen PDF...";
-
-  $("pdfError").hidden = true;
-  $("pdfStage").hidden = true;
-
-  $("searchStatus").textContent = "";
-  $("pdfSearchInput").value = "";
-
-  $("downloadButton").href = "";
-  $("downloadButton").removeAttribute("download");
-
-  currentUrl =
-    `./pdf/${encodeURIComponent(item.file).replace(/%2F/gi, "/")}`;
-
-  $("downloadButton").href = currentUrl;
-  $("downloadButton").download = item.file;
-
-  try {
-
-    const loadingTask = pdfjsLib.getDocument({
-      url: currentUrl
+    renderTasks.forEach(task => {
+        try {
+            task.cancel();
+        } catch (_) {}
     });
 
-    const loadedDocument = await loadingTask.promise;
+    renderTasks = [];
 
-    if (thisLoading !== loadingNumber) {
-      loadedDocument.destroy().catch(() => {});
-      return;
+    if (pdfLoadingTask) {
+
+        const oldTask = pdfLoadingTask;
+
+        pdfLoadingTask = null;
+
+        try {
+            await oldTask.destroy();
+        } catch (_) {}
+
     }
 
-    pdfDocument = loadedDocument;
+    if (pdfDocument) {
 
-    currentPage = 1;
-    scale = 1;
+        const oldDocument = pdfDocument;
 
-    $("pageTotal").textContent =
-      `/ ${pdfDocument.numPages}`;
+        pdfDocument = null;
 
-    $("pageNumber").value = currentPage;
+        try {
+            await oldDocument.destroy();
+        } catch (_) {}
 
-    $("zoomLabel").textContent = "100%";
-
-    $("pageInfoTop").textContent =
-      `${pdfDocument.numPages} halaman`;
-
-    $("pdfLoading").hidden = true;
-    $("pdfStage").hidden = false;
-
-    await renderPage(currentPage);
-
-    if (thisLoading === loadingNumber) {
-      buildTextIndex();
     }
 
-  } catch (error) {
+    // Periksa apakah masih merupakan proses terbaru
 
     if (thisLoading !== loadingNumber) return;
 
-    console.error("PDF Error:", error);
+    // Bersihkan viewer
 
-    $("pdfLoading").hidden = true;
-    $("pdfError").hidden = false;
+    pdfStage.replaceChildren();
 
-    $("pdfError").textContent =
-      `PDF tidak dapat ditampilkan. Periksa file PDF, nama file, dan koneksi internet. Detail: ${error.message}`;
+    pdfError.hidden = true;
 
-  }
+    pdfLoading.hidden = false;
+
+    pdfLoading.textContent =
+        "Memuat dokumen PDF...";
+
+    pdfStage.hidden = true;
+
+    // Tampilkan mode PDF saja
+
+    showViewer();
+
+    // Buat alamat file PDF
+
+    currentUrl =
+        "./pdf/" + encodeURIComponent(item.file);
+
+    try {
+
+        // Muat PDF
+
+        const loadingTask = pdfjsLib.getDocument({
+
+            url: currentUrl,
+
+            // Kompatibilitas pengambilan file
+
+            disableAutoFetch: false,
+
+            disableStream: false,
+
+            rangeChunkSize: 65536
+
+        });
+
+        pdfLoadingTask = loadingTask;
+
+        const loadedDocument = await loadingTask.promise;
+
+        // Abaikan proses lama
+
+        if (thisLoading !== loadingNumber) {
+
+            await loadedDocument.destroy();
+
+            return;
+
+        }
+
+        pdfDocument = loadedDocument;
+
+        pdfLoadingTask = null;
+
+        // Sembunyikan loading
+
+        pdfLoading.hidden = true;
+
+        pdfStage.hidden = false;
+
+        // Render semua halaman
+
+        await renderAllPages(loadedDocument, thisLoading);
+
+    } catch (error) {
+
+        if (thisLoading !== loadingNumber) return;
+
+        console.error("PDF Error:", error);
+
+        pdfLoading.hidden = true;
+
+        pdfStage.hidden = true;
+
+        pdfError.hidden = false;
+
+        pdfError.textContent =
+            `PDF tidak dapat ditampilkan. Periksa file PDF, nama file, dan koneksi internet. Detail: ${error.message}`;
+
+    }
+
 }
 
-// ==========================================
-// MEMBUKA PDF DARI LINK LANGSUNG
-// ==========================================
+
+/* ==========================================
+   RENDER SEMUA HALAMAN PDF
+========================================== */
+
+async function renderAllPages(documentPdf, activeLoading) {
+
+    if (!documentPdf) return;
+
+    pdfStage.replaceChildren();
+
+    const totalPages = documentPdf.numPages;
+
+    for (
+        let pageNumber = 1;
+        pageNumber <= totalPages;
+        pageNumber++
+    ) {
+
+        // Pastikan dokumen masih aktif
+
+        if (
+            documentPdf !== pdfDocument ||
+            activeLoading !== loadingNumber
+        ) {
+            return;
+        }
+
+        const page = await documentPdf.getPage(pageNumber);
+
+        if (
+            documentPdf !== pdfDocument ||
+            activeLoading !== loadingNumber
+        ) {
+            return;
+        }
+
+        // Buat pembungkus halaman
+
+        const pageContainer = document.createElement("div");
+
+        pageContainer.className = "pdf-page";
+
+        // Buat canvas baru untuk setiap halaman
+
+        const canvas = document.createElement("canvas");
+
+        const context = canvas.getContext("2d", {
+            alpha: false
+        });
+
+        if (!context) {
+            throw new Error("Canvas tidak dapat dibuat.");
+        }
+
+        pageContainer.appendChild(canvas);
+
+        pdfStage.appendChild(pageContainer);
+
+        // Ukuran asli halaman
+
+        const baseViewport = page.getViewport({
+            scale: 1
+        });
+
+        // Sesuaikan lebar dengan layar
+
+        const availableWidth = Math.max(
+            200,
+            pdfStage.clientWidth
+        );
+
+        const fitScale = Math.min(
+            2,
+            availableWidth / baseViewport.width
+        );
+
+        const viewport = page.getViewport({
+            scale: fitScale
+        });
+
+        // Resolusi layar
+
+        const outputScale = Math.min(
+            window.devicePixelRatio || 1,
+            2
+        );
+
+        canvas.width = Math.floor(
+            viewport.width * outputScale
+        );
+
+        canvas.height = Math.floor(
+            viewport.height * outputScale
+        );
+
+        canvas.style.width =
+            `${Math.floor(viewport.width)}px`;
+
+        canvas.style.height =
+            `${Math.floor(viewport.height)}px`;
+
+        // Render halaman
+
+        const renderTask = page.render({
+
+            canvasContext: context,
+
+            viewport: viewport,
+
+            transform: [
+                outputScale,
+                0,
+                0,
+                outputScale,
+                0,
+                0
+            ],
+
+            background: "#ffffff"
+
+        });
+
+        renderTasks.push(renderTask);
+
+        try {
+
+            await renderTask.promise;
+
+        } catch (error) {
+
+            if (
+                error.name === "RenderingCancelledException"
+            ) {
+                return;
+            }
+
+            throw error;
+
+        } finally {
+
+            renderTasks = renderTasks.filter(
+                task => task !== renderTask
+            );
+
+        }
+
+    }
+
+    console.log(
+        `Berhasil menampilkan ${totalPages} halaman PDF.`
+    );
+
+}
+
+
+/* ==========================================
+   MEMBUKA PDF DARI LINK LANGSUNG
+========================================== */
 
 function openPdfFromUrl() {
 
-  const params = new URLSearchParams(
-    window.location.search
-  );
-
-  const filename = params.get("pdf");
-
-  if (!filename) return;
-
-  const item = documents.find(doc =>
-    doc.file === filename
-  );
-
-  if (item) {
-    openPdf(item, false);
-  } else {
-    loadError.hidden = false;
-
-    loadError.textContent =
-      `Dokumen "${filename}" tidak ditemukan dalam daftar.json.`;
-  }
-}
-
-// ==========================================
-// RENDER HALAMAN PDF
-// ==========================================
-
-async function renderPage(pageNumber) {
-
-  if (!pdfDocument) return;
-
-  const activeDocument = pdfDocument;
-
-  if (renderTask) {
-    try {
-      renderTask.cancel();
-    } catch (_) {}
-
-    renderTask = null;
-  }
-
-  const page = await activeDocument.getPage(pageNumber);
-
-  if (pdfDocument !== activeDocument) return;
-
-  const canvas = $("pdfCanvas");
-  const context = canvas.getContext("2d");
-
-  const baseViewport = page.getViewport({
-    scale: 1
-  });
-
-  const availableWidth = Math.max(
-    280,
-    $("pdfStage").clientWidth - 30
-  );
-
-  const fitScale = Math.min(
-    1.5,
-    availableWidth / baseViewport.width
-  );
-
-  const viewport = page.getViewport({
-    scale: fitScale * scale
-  });
-
-  const outputScale = Math.min(
-    window.devicePixelRatio || 1,
-    2
-  );
-
-  canvas.width = Math.floor(
-    viewport.width * outputScale
-  );
-
-  canvas.height = Math.floor(
-    viewport.height * outputScale
-  );
-
-  canvas.style.width =
-    `${Math.floor(viewport.width)}px`;
-
-  canvas.style.height =
-    `${Math.floor(viewport.height)}px`;
-
-  const transform = outputScale !== 1
-    ? [
-        outputScale, 0,
-        0, outputScale,
-        0, 0
-      ]
-    : null;
-
-  const task = page.render({
-    canvasContext: context,
-    viewport,
-    transform
-  });
-
-  renderTask = task;
-
-  try {
-
-    await task.promise;
-
-  } catch (error) {
-
-    if (
-      error.name !== "RenderingCancelledException"
-    ) {
-      throw error;
-    }
-
-  } finally {
-
-    if (renderTask === task) {
-      renderTask = null;
-    }
-
-  }
-
-  if (pdfDocument !== activeDocument) return;
-
-  $("pageNumber").value = pageNumber;
-
-  $("prevPage").disabled =
-    pageNumber <= 1;
-
-  $("nextPage").disabled =
-    pageNumber >= activeDocument.numPages;
-}
-
-// ==========================================
-// NAVIGASI HALAMAN
-// ==========================================
-
-async function changePage(nextPage) {
-
-  if (!pdfDocument) return;
-
-  const target = Math.min(
-    pdfDocument.numPages,
-    Math.max(1, nextPage)
-  );
-
-  if (target === currentPage) return;
-
-  currentPage = target;
-
-  try {
-    await renderPage(currentPage);
-  } catch (error) {
-    console.error("Page Error:", error);
-  }
-}
-
-$("prevPage").addEventListener("click", () => {
-  changePage(currentPage - 1);
-});
-
-$("nextPage").addEventListener("click", () => {
-  changePage(currentPage + 1);
-});
-
-$("pageNumber").addEventListener("change", () => {
-
-  const page = Number.parseInt(
-    $("pageNumber").value,
-    10
-  );
-
-  changePage(
-    Number.isFinite(page) ? page : 1
-  );
-
-});
-
-// ==========================================
-// ZOOM IN
-// ==========================================
-
-$("zoomIn").addEventListener("click", async () => {
-
-  if (!pdfDocument) return;
-
-  scale = Math.min(3, scale + 0.2);
-
-  $("zoomLabel").textContent =
-    `${Math.round(scale * 100)}%`;
-
-  try {
-    await renderPage(currentPage);
-  } catch (error) {
-    console.error(error);
-  }
-
-});
-
-// ==========================================
-// ZOOM OUT
-// ==========================================
-
-$("zoomOut").addEventListener("click", async () => {
-
-  if (!pdfDocument) return;
-
-  scale = Math.max(0.5, scale - 0.2);
-
-  $("zoomLabel").textContent =
-    `${Math.round(scale * 100)}%`;
-
-  try {
-    await renderPage(currentPage);
-  } catch (error) {
-    console.error(error);
-  }
-
-});
-
-// ==========================================
-// FULLSCREEN
-// ==========================================
-
-$("fullscreenButton").addEventListener("click", async () => {
-
-  const shell = $("viewerShell");
-
-  try {
-
-    if (!document.fullscreenElement) {
-
-      if (shell.requestFullscreen) {
-        await shell.requestFullscreen();
-      } else {
-        throw new Error(
-          "Fullscreen API tidak tersedia."
-        );
-      }
-
-    } else {
-
-      await document.exitFullscreen();
-
-    }
-
-  } catch (error) {
-
-    const isFullscreen =
-      shell.classList.toggle("css-fullscreen");
-
-    document.body.classList.toggle(
-      "viewer-expanded",
-      isFullscreen
+    const params = new URLSearchParams(
+        window.location.search
     );
 
-    $("searchStatus").textContent =
-      isFullscreen
-        ? "Mode layar penuh aktif."
-        : "Mode layar penuh ditutup.";
+    const filename = params.get("pdf");
 
-  }
+    // Tidak ada parameter PDF
 
-  if (pdfDocument) {
-    requestAnimationFrame(() => {
-      renderPage(currentPage).catch(console.error);
-    });
-  }
+    if (!filename) {
 
-});
+        document.body.classList.remove("pdf-only");
 
-// ==========================================
-// MEMBANGUN INDEX PENCARIAN PDF
-// ==========================================
+        viewerView.hidden = true;
+        listView.hidden = false;
 
-async function buildTextIndex() {
-
-  if (!pdfDocument) return;
-
-  const thisDocument = pdfDocument;
-
-  textIndex = [];
-
-  $("searchStatus").textContent =
-    "Menyiapkan pencarian teks...";
-
-  try {
-
-    for (
-      let pageNo = 1;
-      pageNo <= thisDocument.numPages;
-      pageNo++
-    ) {
-
-      if (pdfDocument !== thisDocument) return;
-
-      const page = await thisDocument.getPage(pageNo);
-
-      const content = await page.getTextContent();
-
-      const text = content.items
-        .map(item => item.str || "")
-        .join(" ");
-
-      textIndex.push({
-        page: pageNo,
-        text: text.toLocaleLowerCase("id")
-      });
+        return;
 
     }
 
-    if (pdfDocument === thisDocument) {
-      $("searchStatus").textContent =
-        "Pencarian teks siap.";
-    }
-
-  } catch (error) {
-
-    console.error("Text Index Error:", error);
-
-    $("searchStatus").textContent =
-      "Pencarian teks tidak dapat disiapkan untuk dokumen ini.";
-
-  }
-
-}
-
-// ==========================================
-// PENCARIAN TEKS PDF
-// ==========================================
-
-function runSearch(direction = 1) {
-
-  const query = $("pdfSearchInput")
-    .value
-    .trim()
-    .toLocaleLowerCase("id");
-
-  if (!query) {
-
-    $("searchStatus").textContent =
-      "Masukkan kata yang ingin dicari.";
-
-    return;
-  }
-
-  if (!textIndex.length) {
-
-    $("searchStatus").textContent =
-      "Teks PDF masih disiapkan atau tidak tersedia.";
-
-    return;
-  }
-
-  searchMatches = [];
-
-  textIndex.forEach(entry => {
-
-    let start = 0;
-
-    while (true) {
-
-      const found = entry.text.indexOf(
-        query,
-        start
-      );
-
-      if (found === -1) break;
-
-      searchMatches.push({
-        page: entry.page,
-        index: found
-      });
-
-      start = found + Math.max(
-        1,
-        query.length
-      );
-
-    }
-
-  });
-
-  if (!searchMatches.length) {
-
-    currentMatch = -1;
-
-    $("searchStatus").textContent =
-      "Teks tidak ditemukan. Jika PDF berupa hasil scan atau foto, diperlukan OCR agar teks dapat dicari.";
-
-    return;
-  }
-
-  if (direction === 0) {
-
-    currentMatch = 0;
-
-  } else if (currentMatch < 0) {
-
-    currentMatch = 0;
-
-  } else {
-
-    currentMatch =
-      (
-        currentMatch +
-        direction +
-        searchMatches.length
-      ) % searchMatches.length;
-
-  }
-
-  const match = searchMatches[currentMatch];
-
-  $("searchStatus").textContent =
-    `Hasil ${currentMatch + 1} dari ${searchMatches.length} · Halaman ${match.page}.`;
-
-  changePage(match.page);
-
-}
-
-// ==========================================
-// TOMBOL PENCARIAN
-// ==========================================
-
-$("pdfSearchForm").addEventListener("submit", event => {
-
-  event.preventDefault();
-
-  runSearch(0);
-
-});
-
-$("searchNext").addEventListener("click", () => {
-  runSearch(1);
-});
-
-$("searchPrev").addEventListener("click", () => {
-  runSearch(-1);
-});
-
-// ==========================================
-// TOMBOL BACK BROWSER / ANDROID
-// ==========================================
-
-window.addEventListener("popstate", () => {
-
-  const params = new URLSearchParams(
-    window.location.search
-  );
-
-  const filename = params.get("pdf");
-
-  if (filename) {
+    // Cari dokumen di daftar JSON
 
     const item = documents.find(doc =>
-      doc.file === filename
+        doc.file === filename
     );
 
     if (item) {
-      openPdf(item, false);
-      return;
+
+        openPdf(item, false);
+
+    } else {
+
+        document.body.classList.remove("pdf-only");
+
+        viewerView.hidden = true;
+        listView.hidden = false;
+
+        loadError.hidden = false;
+
+        loadError.textContent =
+            `Dokumen "${filename}" tidak ditemukan dalam daftar.json.`;
+
     }
 
-  }
+}
 
-  showList(false);
+
+/* ==========================================
+   TOMBOL BACK BROWSER / ANDROID
+========================================== */
+
+window.addEventListener("popstate", () => {
+
+    const params = new URLSearchParams(
+        window.location.search
+    );
+
+    const filename = params.get("pdf");
+
+    if (filename) {
+
+        const item = documents.find(doc =>
+            doc.file === filename
+        );
+
+        if (item) {
+
+            openPdf(item, false);
+
+            return;
+
+        }
+
+    }
+
+    showList(false);
 
 });
 
-// ==========================================
-// INISIALISASI WEBSITE
-// ==========================================
+
+/* ==========================================
+   PENYESUAIAN UKURAN LAYAR
+========================================== */
+
+window.addEventListener("resize", () => {
+
+    if (!pdfDocument) return;
+
+    clearTimeout(resizeTimer);
+
+    resizeTimer = setTimeout(() => {
+
+        if (!pdfDocument) return;
+
+        const activeDocument = pdfDocument;
+
+        const activeLoading = loadingNumber;
+
+        renderAllPages(
+            activeDocument,
+            activeLoading
+        ).catch(error => {
+            console.error("Resize PDF Error:", error);
+        });
+
+    }, 300);
+
+});
+
+
+/* ==========================================
+   INISIALISASI WEBSITE
+========================================== */
 
 async function initializeWebsite() {
 
-  await loadDocuments();
+    await loadDocuments();
 
-  openPdfFromUrl();
+    openPdfFromUrl();
 
 }
 
