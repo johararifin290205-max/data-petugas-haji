@@ -1,103 +1,162 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#166534">
-  <title>Data Petugas Haji</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#166534">
+
+    <title>Data Petugas Haji</title>
+
+    <link rel="stylesheet" href="./style.css">
 </head>
+
 <body>
-  <header class="site-header">
-    <div class="header-inner">
-      <a class="brand" href="./" aria-label="Data Petugas Haji">
-        <span class="brand-mark">PH</span>
-        <span><strong>Data Petugas Haji</strong><small>Portal Dokumen</small></span>
-      </a>
-      <span class="header-tag">Pusat Dokumen</span>
-    </div>
-  </header>
 
-  <main class="container">
-    <section id="listView">
-      <div class="hero">
-        <div>
-          <p class="eyebrow">PORTAL INFORMASI</p>
-          <h1>Data Petugas Haji</h1>
-          <p class="hero-desc">Temukan dan baca dokumen data petugas haji dengan mudah.</p>
+    <!-- HEADER WEBSITE -->
+    <header class="site-header">
+        <div class="header-inner">
+
+            <a href="./" class="brand">
+                <span class="brand-mark">PH</span>
+
+                <span class="brand-text">
+                    <strong>Data Petugas Haji</strong>
+                    <small>Portal Dokumen</small>
+                </span>
+            </a>
+
+            <span class="header-tag">
+                Pusat Dokumen
+            </span>
+
         </div>
-        <div class="hero-icon" aria-hidden="true">▤</div>
-      </div>
+    </header>
 
-      <div class="list-heading">
-        <div>
-          <h2>Daftar Dokumen</h2>
-          <p id="documentCount" class="muted">Memuat dokumen...</p>
-        </div>
-        <label class="search-box">
-          <span aria-hidden="true">⌕</span>
-          <input id="searchInput" type="search" placeholder="Cari judul dokumen..." autocomplete="off">
-        </label>
-      </div>
 
-      <div id="documentList" class="document-grid" aria-live="polite"></div>
-      <div id="emptyState" class="empty-state" hidden>
-        <div class="empty-icon">⌕</div>
-        <h3>Dokumen tidak ditemukan</h3>
-        <p>Coba gunakan kata kunci judul yang berbeda.</p>
-      </div>
-      <div id="loadError" class="notice error" hidden></div>
-    </section>
+    <!-- KONTEN UTAMA -->
+    <main class="container">
 
-    <section id="viewerView" hidden>
-      <div class="viewer-topbar">
-        <button id="backButton" class="button button-light" type="button">← Kembali ke daftar</button>
-        <div class="viewer-title-wrap">
-          <h2 id="viewerTitle">Nama dokumen</h2>
-          <p id="pageInfoTop" class="muted"></p>
-        </div>
-        <a id="downloadButton" class="button button-primary" href="#" download>↓ Unduh PDF</a>
-      </div>
+        <!-- DAFTAR DOKUMEN -->
+        <section id="listView">
 
-      <div class="viewer-shell" id="viewerShell">
-        <div class="toolbar">
-          <div class="toolbar-group page-controls">
-            <button id="prevPage" class="tool-button" type="button" title="Halaman sebelumnya" aria-label="Halaman sebelumnya">‹</button>
-            <label class="page-input-wrap">
-              <input id="pageNumber" type="number" min="1" value="1" aria-label="Nomor halaman">
-              <span id="pageTotal">/ 0</span>
+            <div class="hero">
+
+                <div>
+                    <p class="eyebrow">PORTAL INFORMASI</p>
+
+                    <h1>Data Petugas Haji</h1>
+
+                    <p class="hero-desc">
+                        Temukan dan baca dokumen data petugas haji
+                        dengan mudah.
+                    </p>
+                </div>
+
+                <div class="hero-icon" aria-hidden="true">
+                    ▤
+                </div>
+
+            </div>
+
+
+            <div class="list-heading">
+
+                <div>
+                    <h2>Daftar Dokumen</h2>
+
+                    <p id="documentCount" class="muted">
+                        Memuat dokumen...
+                    </p>
+                </div>
+
+            </div>
+
+
+            <!-- PENCARIAN JUDUL -->
+            <label class="search-box">
+
+                <span aria-hidden="true">⌕</span>
+
+                <input
+                    id="searchInput"
+                    type="search"
+                    placeholder="Cari judul dokumen..."
+                    autocomplete="off"
+                >
+
             </label>
-            <button id="nextPage" class="tool-button" type="button" title="Halaman berikutnya" aria-label="Halaman berikutnya">›</button>
-          </div>
-          <div class="toolbar-group zoom-controls">
-            <button id="zoomOut" class="tool-button" type="button" title="Perkecil" aria-label="Perkecil">−</button>
-            <span id="zoomLabel" class="zoom-label">100%</span>
-            <button id="zoomIn" class="tool-button" type="button" title="Perbesar" aria-label="Perbesar">+</button>
-          </div>
-          <form id="pdfSearchForm" class="toolbar-group pdf-search">
-            <input id="pdfSearchInput" type="search" placeholder="Cari teks dalam PDF..." aria-label="Cari teks dalam PDF">
-            <button class="tool-button search-submit" type="submit">Cari</button>
-            <button id="searchPrev" class="tool-button" type="button" title="Hasil sebelumnya" aria-label="Hasil sebelumnya">↑</button>
-            <button id="searchNext" class="tool-button" type="button" title="Hasil berikutnya" aria-label="Hasil berikutnya">↓</button>
-          </form>
-          <button id="fullscreenButton" class="tool-button fullscreen-button" type="button" title="Layar penuh">⛶ <span>Layar penuh</span></button>
-        </div>
 
-        <div id="searchStatus" class="search-status" aria-live="polite"></div>
-        <div id="pdfLoading" class="pdf-message">Memuat PDF...</div>
-        <div id="pdfError" class="pdf-message error-text" hidden></div>
-        <div id="pdfStage" class="pdf-stage" hidden>
-          <canvas id="pdfCanvas"></canvas>
-        </div>
-      </div>
-      <p class="viewer-note">Jika teks tidak dapat ditemukan, kemungkinan dokumen berupa hasil pindai gambar dan belum memiliki lapisan teks.</p>
-    </section>
-  </main>
 
-  <footer class="site-footer">
-    <p>Data Petugas Haji · Portal Dokumen</p>
-  </footer>
+            <!-- DAFTAR PDF -->
+            <div
+                id="documentList"
+                class="document-grid"
+                aria-live="polite"
+            ></div>
 
-  <script type="module" src="script.js"></script>
+
+            <!-- JIKA DOKUMEN TIDAK DITEMUKAN -->
+            <div id="emptyState" class="empty-state" hidden>
+
+                <div class="empty-icon">⌕</div>
+
+                <h3>Dokumen tidak ditemukan</h3>
+
+                <p>
+                    Coba gunakan kata kunci judul yang berbeda.
+                </p>
+
+            </div>
+
+
+            <!-- ERROR -->
+            <div
+                id="loadError"
+                class="notice error"
+                hidden
+            ></div>
+
+        </section>
+
+
+        <!-- PDF VIEWER -->
+        <section id="viewerView" hidden>
+
+            <!-- LOADING -->
+            <div id="pdfLoading" class="pdf-message">
+                Memuat dokumen PDF...
+            </div>
+
+
+            <!-- ERROR PDF -->
+            <div
+                id="pdfError"
+                class="pdf-message error-text"
+                hidden
+            ></div>
+
+
+            <!-- TEMPAT SEMUA HALAMAN PDF -->
+            <div
+                id="pdfStage"
+                class="pdf-stage"
+                hidden
+            ></div>
+
+        </section>
+
+    </main>
+
+
+    <!-- FOOTER -->
+    <footer class="site-footer">
+        <p>Data Petugas Haji · Portal Dokumen</p>
+    </footer>
+
+
+    <!-- JAVASCRIPT -->
+    <script type="module" src="./script.js"></script>
+
 </body>
 </html>
