@@ -17,13 +17,15 @@
     <header class="site-header">
         <div class="header-inner">
 
-            <a href="./" class="brand">
+            <a href="./" class="brand" aria-label="Data Petugas Haji">
+
                 <span class="brand-mark">PH</span>
 
                 <span class="brand-text">
                     <strong>Data Petugas Haji</strong>
                     <small>Portal Dokumen</small>
                 </span>
+
             </a>
 
             <span class="header-tag">
@@ -43,7 +45,10 @@
             <div class="hero">
 
                 <div>
-                    <p class="eyebrow">PORTAL INFORMASI</p>
+
+                    <p class="eyebrow">
+                        PORTAL INFORMASI
+                    </p>
 
                     <h1>Data Petugas Haji</h1>
 
@@ -51,6 +56,7 @@
                         Temukan dan baca dokumen data petugas haji
                         dengan mudah.
                     </p>
+
                 </div>
 
                 <div class="hero-icon" aria-hidden="true">
@@ -60,20 +66,23 @@
             </div>
 
 
+            <!-- JUDUL DAFTAR -->
             <div class="list-heading">
 
                 <div>
+
                     <h2>Daftar Dokumen</h2>
 
                     <p id="documentCount" class="muted">
                         Memuat dokumen...
                     </p>
+
                 </div>
 
             </div>
 
 
-            <!-- PENCARIAN JUDUL -->
+            <!-- PENCARIAN -->
             <label class="search-box">
 
                 <span aria-hidden="true">⌕</span>
@@ -96,8 +105,12 @@
             ></div>
 
 
-            <!-- JIKA DOKUMEN TIDAK DITEMUKAN -->
-            <div id="emptyState" class="empty-state" hidden>
+            <!-- DOKUMEN KOSONG -->
+            <div
+                id="emptyState"
+                class="empty-state"
+                hidden
+            >
 
                 <div class="empty-icon">⌕</div>
 
@@ -110,7 +123,7 @@
             </div>
 
 
-            <!-- ERROR -->
+            <!-- ERROR DAFTAR -->
             <div
                 id="loadError"
                 class="notice error"
@@ -124,7 +137,11 @@
         <section id="viewerView" hidden>
 
             <!-- LOADING -->
-            <div id="pdfLoading" class="pdf-message">
+            <div
+                id="pdfLoading"
+                class="pdf-message"
+                hidden
+            >
                 Memuat dokumen PDF...
             </div>
 
@@ -137,7 +154,7 @@
             ></div>
 
 
-            <!-- TEMPAT SEMUA HALAMAN PDF -->
+            <!-- SEMUA HALAMAN PDF -->
             <div
                 id="pdfStage"
                 class="pdf-stage"
@@ -151,12 +168,22 @@
 
     <!-- FOOTER -->
     <footer class="site-footer">
-        <p>Data Petugas Haji · Portal Dokumen</p>
+
+        <p>
+            Data Petugas Haji · Portal Dokumen
+        </p>
+
     </footer>
 
 
-    <!-- JAVASCRIPT -->
-    <script type="module" src="./script.js"></script>
+    <!-- PDF.JS VERSI 3.11.174 -->
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
+    ></script>
+
+
+    <!-- JAVASCRIPT WEBSITE -->
+    <script src="./script.js" defer></script>
 
 </body>
 </html>
