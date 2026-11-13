@@ -1,41 +1,39 @@
 
 /* ==========================================
+   DATA PETUGAS HAJI
+   PDF.JS 3.11.174
    KOMPATIBILITAS BROWSER ANDROID
 ========================================== */
 
-if (typeof Promise.withResolvers !== "function") {
-    Promise.withResolvers = function () {
-        let resolve;
-        let reject;
-
-        const promise = new Promise((res, rej) => {
-            resolve = res;
-            reject = rej;
-        });
-
-        return {
-            promise,
-            resolve,
-            reject
-        };
-    };
-}
-
 
 /* ==========================================
-   KONFIGURASI PDF.JS
+   1. KONFIGURASI PDF.JS
 ========================================== */
 
-const pdfjsLib = await import(
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs"
-);
+const pdfjsLib = window.pdfjsLib;
+
+if (!pdfjsLib) {
+    console.error("PDF.js gagal dimuat.");
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const error = document.getElementById("pdfError");
+
+        if (error) {
+            error.hidden = false;
+            error.textContent =
+                "Library PDF gagal dimuat. Periksa koneksi internet dan CDN PDF.js.";
+        }
+    });
+
+    throw new Error("PDF.js tidak tersedia.");
+}
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 
 /* ==========================================
-   ELEMEN HTML
+   2. ELEMEN HTML
 ========================================== */
 
 const $ = (id) => document.getElementById(id);
@@ -56,7 +54,7 @@ const pdfStage = $("pdfStage");
 
 
 /* ==========================================
-   STATE / VARIABEL
+   3. STATE / VARIABEL
 ========================================== */
 
 let documents = [];
@@ -67,13 +65,14 @@ let pdfLoadingTask = null;
 let currentUrl = "";
 
 let loadingNumber = 0;
+
 let renderTasks = [];
 
 let resizeTimer = null;
 
 
 /* ==========================================
-   MANAJEMEN URL
+   4. MANAJEMEN URL
 ========================================== */
 
 function updatePdfUrl(file, method = "pushState") {
@@ -92,7 +91,7 @@ function updatePdfUrl(file, method = "pushState") {
 
 
 /* ==========================================
-   MEMBACA DAFTAR JSON
+   5. MEMBACA DAFTAR.JSON
 ========================================== */
 
 async function loadDocuments() {
@@ -145,7 +144,7 @@ async function loadDocuments() {
 
 
 /* ==========================================
-   MENAMPILKAN DAFTAR DOKUMEN
+   6. MENAMPILKAN DAFTAR DOKUMEN
 ========================================== */
 
 function renderList() {
@@ -200,7 +199,7 @@ searchInput.addEventListener("input", renderList);
 
 
 /* ==========================================
-   MENAMPILKAN PDF VIEWER
+   7. MENAMPILKAN MODE PDF
 ========================================== */
 
 function showViewer() {
@@ -208,6 +207,7 @@ function showViewer() {
     document.body.classList.add("pdf-only");
 
     listView.hidden = true;
+
     viewerView.hidden = false;
 
     window.scrollTo(0, 0);
@@ -216,14 +216,12 @@ function showViewer() {
 
 
 /* ==========================================
-   MENGHENTIKAN PROSES PDF
+   8. MEMBERSIHKAN PDF LAMA
 ========================================== */
 
 async function disposePdf() {
 
-    loadingNumber++;
-
-    // Hentikan semua proses render
+    // Batalkan seluruh render aktif
 
     renderTasks.forEach(task => {
 
@@ -235,7 +233,8 @@ async function disposePdf() {
 
     renderTasks = [];
 
-    // Hentikan proses loading
+
+    // Hentikan loading PDF
 
     if (pdfLoadingTask) {
 
@@ -249,7 +248,8 @@ async function disposePdf() {
 
     }
 
-    // Hapus dokumen lama
+
+    // Hancurkan dokumen lama
 
     if (pdfDocument) {
 
@@ -263,26 +263,35 @@ async function disposePdf() {
 
     }
 
+
+    // Kosongkan tampilan
+
     pdfStage.replaceChildren();
 
 }
 
 
 /* ==========================================
-   KEMBALI KE DAFTAR
+   9. KEMBALI KE DAFTAR
 ========================================== */
 
 async function showList(updateUrl = true) {
+
+    loadingNumber++;
 
     await disposePdf();
 
     document.body.classList.remove("pdf-only");
 
     viewerView.hidden = true;
+
     listView.hidden = false;
 
     pdfLoading.hidden = true;
+
     pdfError.hidden = true;
+
+    pdfStage.hidden = true;
 
     if (updateUrl) {
         updatePdfUrl(null, "replaceState");
@@ -294,62 +303,36 @@ async function showList(updateUrl = true) {
 
 
 /* ==========================================
-   MEMBUKA PDF
+   10. MEMBUKA PDF
 ========================================== */
 
 async function openPdf(item, updateUrl = true) {
 
     if (!item || !item.file) return;
 
-    // Perbarui URL
+    // Perbarui URL browser
 
     if (updateUrl) {
         updatePdfUrl(item.file);
     }
 
+    // Nomor proses aktif
+
     const thisLoading = ++loadingNumber;
 
-    // Hentikan proses sebelumnya
+    // Hentikan proses PDF sebelumnya
 
-    renderTasks.forEach(task => {
-        try {
-            task.cancel();
-        } catch (_) {}
-    });
+    await disposePdf();
 
-    renderTasks = [];
-
-    if (pdfLoadingTask) {
-
-        const oldTask = pdfLoadingTask;
-
-        pdfLoadingTask = null;
-
-        try {
-            await oldTask.destroy();
-        } catch (_) {}
-
-    }
-
-    if (pdfDocument) {
-
-        const oldDocument = pdfDocument;
-
-        pdfDocument = null;
-
-        try {
-            await oldDocument.destroy();
-        } catch (_) {}
-
-    }
-
-    // Periksa apakah masih merupakan proses terbaru
+    // Abaikan jika ada permintaan baru
 
     if (thisLoading !== loadingNumber) return;
 
-    // Bersihkan viewer
+    // Tampilkan viewer
 
-    pdfStage.replaceChildren();
+    showViewer();
+
+    // Bersihkan error dan loading
 
     pdfError.hidden = true;
 
@@ -360,24 +343,20 @@ async function openPdf(item, updateUrl = true) {
 
     pdfStage.hidden = true;
 
-    // Tampilkan mode PDF saja
 
-    showViewer();
-
-    // Buat alamat file PDF
+    // Alamat PDF
 
     currentUrl =
         "./pdf/" + encodeURIComponent(item.file);
 
+
     try {
 
-        // Muat PDF
+        // Mulai memuat PDF
 
         const loadingTask = pdfjsLib.getDocument({
 
             url: currentUrl,
-
-            // Kompatibilitas pengambilan file
 
             disableAutoFetch: false,
 
@@ -389,9 +368,13 @@ async function openPdf(item, updateUrl = true) {
 
         pdfLoadingTask = loadingTask;
 
+
+        // Tunggu PDF selesai dimuat
+
         const loadedDocument = await loadingTask.promise;
 
-        // Abaikan proses lama
+
+        // Periksa apakah proses masih aktif
 
         if (thisLoading !== loadingNumber) {
 
@@ -401,19 +384,28 @@ async function openPdf(item, updateUrl = true) {
 
         }
 
+
+        // Simpan dokumen aktif
+
         pdfDocument = loadedDocument;
 
         pdfLoadingTask = null;
 
-        // Sembunyikan loading
+
+        // Tampilkan area PDF
 
         pdfLoading.hidden = true;
 
         pdfStage.hidden = false;
 
-        // Render semua halaman
 
-        await renderAllPages(loadedDocument, thisLoading);
+        // Render seluruh halaman
+
+        await renderAllPages(
+            loadedDocument,
+            thisLoading
+        );
+
 
     } catch (error) {
 
@@ -436,10 +428,13 @@ async function openPdf(item, updateUrl = true) {
 
 
 /* ==========================================
-   RENDER SEMUA HALAMAN PDF
+   11. RENDER SEMUA HALAMAN PDF
 ========================================== */
 
-async function renderAllPages(documentPdf, activeLoading) {
+async function renderAllPages(
+    documentPdf,
+    activeLoading
+) {
 
     if (!documentPdf) return;
 
@@ -447,13 +442,16 @@ async function renderAllPages(documentPdf, activeLoading) {
 
     const totalPages = documentPdf.numPages;
 
+
+    // Render halaman satu per satu
+
     for (
         let pageNumber = 1;
         pageNumber <= totalPages;
         pageNumber++
     ) {
 
-        // Pastikan dokumen masih aktif
+        // Validasi dokumen
 
         if (
             documentPdf !== pdfDocument ||
@@ -461,9 +459,13 @@ async function renderAllPages(documentPdf, activeLoading) {
         ) {
             return;
         }
+
+
+        // Ambil halaman PDF
 
         const page = await documentPdf.getPage(pageNumber);
 
+
         if (
             documentPdf !== pdfDocument ||
             activeLoading !== loadingNumber
@@ -471,35 +473,44 @@ async function renderAllPages(documentPdf, activeLoading) {
             return;
         }
 
-        // Buat pembungkus halaman
 
-        const pageContainer = document.createElement("div");
+        // Pembungkus halaman
+
+        const pageContainer =
+            document.createElement("div");
 
         pageContainer.className = "pdf-page";
 
-        // Buat canvas baru untuk setiap halaman
 
-        const canvas = document.createElement("canvas");
+        // Canvas halaman
+
+        const canvas =
+            document.createElement("canvas");
 
         const context = canvas.getContext("2d", {
             alpha: false
         });
 
         if (!context) {
-            throw new Error("Canvas tidak dapat dibuat.");
+            throw new Error(
+                "Browser tidak mendukung Canvas."
+            );
         }
+
 
         pageContainer.appendChild(canvas);
 
         pdfStage.appendChild(pageContainer);
 
-        // Ukuran asli halaman
+
+        // Ukuran asli PDF
 
         const baseViewport = page.getViewport({
             scale: 1
         });
 
-        // Sesuaikan lebar dengan layar
+
+        // Sesuaikan dengan lebar layar
 
         const availableWidth = Math.max(
             200,
@@ -507,13 +518,15 @@ async function renderAllPages(documentPdf, activeLoading) {
         );
 
         const fitScale = Math.min(
-            2,
+            1.5,
             availableWidth / baseViewport.width
         );
+
 
         const viewport = page.getViewport({
             scale: fitScale
         });
+
 
         // Resolusi layar
 
@@ -521,6 +534,7 @@ async function renderAllPages(documentPdf, activeLoading) {
             window.devicePixelRatio || 1,
             2
         );
+
 
         canvas.width = Math.floor(
             viewport.width * outputScale
@@ -536,7 +550,8 @@ async function renderAllPages(documentPdf, activeLoading) {
         canvas.style.height =
             `${Math.floor(viewport.height)}px`;
 
-        // Render halaman
+
+        // Proses render
 
         const renderTask = page.render({
 
@@ -557,7 +572,9 @@ async function renderAllPages(documentPdf, activeLoading) {
 
         });
 
+
         renderTasks.push(renderTask);
+
 
         try {
 
@@ -583,6 +600,7 @@ async function renderAllPages(documentPdf, activeLoading) {
 
     }
 
+
     console.log(
         `Berhasil menampilkan ${totalPages} halaman PDF.`
     );
@@ -591,7 +609,7 @@ async function renderAllPages(documentPdf, activeLoading) {
 
 
 /* ==========================================
-   MEMBUKA PDF DARI LINK LANGSUNG
+   12. MEMBUKA PDF DARI LINK LANGSUNG
 ========================================== */
 
 function openPdfFromUrl() {
@@ -602,24 +620,28 @@ function openPdfFromUrl() {
 
     const filename = params.get("pdf");
 
-    // Tidak ada parameter PDF
+
+    // Jika tidak ada PDF di URL
 
     if (!filename) {
 
         document.body.classList.remove("pdf-only");
 
         viewerView.hidden = true;
+
         listView.hidden = false;
 
         return;
 
     }
 
-    // Cari dokumen di daftar JSON
+
+    // Cari dokumen
 
     const item = documents.find(doc =>
         doc.file === filename
     );
+
 
     if (item) {
 
@@ -630,6 +652,7 @@ function openPdfFromUrl() {
         document.body.classList.remove("pdf-only");
 
         viewerView.hidden = true;
+
         listView.hidden = false;
 
         loadError.hidden = false;
@@ -643,7 +666,7 @@ function openPdfFromUrl() {
 
 
 /* ==========================================
-   TOMBOL BACK BROWSER / ANDROID
+   13. TOMBOL BACK BROWSER / ANDROID
 ========================================== */
 
 window.addEventListener("popstate", () => {
@@ -653,6 +676,7 @@ window.addEventListener("popstate", () => {
     );
 
     const filename = params.get("pdf");
+
 
     if (filename) {
 
@@ -670,13 +694,14 @@ window.addEventListener("popstate", () => {
 
     }
 
+
     showList(false);
 
 });
 
 
 /* ==========================================
-   PENYESUAIAN UKURAN LAYAR
+   14. PENYESUAIAN UKURAN LAYAR
 ========================================== */
 
 window.addEventListener("resize", () => {
@@ -685,7 +710,7 @@ window.addEventListener("resize", () => {
 
     clearTimeout(resizeTimer);
 
-    resizeTimer = setTimeout(() => {
+    resizeTimer = setTimeout(async () => {
 
         if (!pdfDocument) return;
 
@@ -693,20 +718,29 @@ window.addEventListener("resize", () => {
 
         const activeLoading = loadingNumber;
 
-        renderAllPages(
-            activeDocument,
-            activeLoading
-        ).catch(error => {
-            console.error("Resize PDF Error:", error);
-        });
+        try {
 
-    }, 300);
+            await renderAllPages(
+                activeDocument,
+                activeLoading
+            );
+
+        } catch (error) {
+
+            console.error(
+                "Resize PDF Error:",
+                error
+            );
+
+        }
+
+    }, 400);
 
 });
 
 
 /* ==========================================
-   INISIALISASI WEBSITE
+   15. INISIALISASI WEBSITE
 ========================================== */
 
 async function initializeWebsite() {
@@ -716,5 +750,8 @@ async function initializeWebsite() {
     openPdfFromUrl();
 
 }
+
+
+// Jalankan website
 
 initializeWebsite();
